@@ -17,6 +17,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { SensorNode } from "@/types/database";
+import { supabase } from "@/lib/supabase/client";
 
 export default function CitizenDashboard() {
   const [sensors, setSensors] = useState<SensorNode[]>([]);
@@ -26,8 +27,8 @@ export default function CitizenDashboard() {
   const [pushEnabled, setPushEnabled] = useState(true);
   const [waAlertEnabled, setWaAlertEnabled] = useState(true);
 
-  useEffect(() => {
-    setIsLoading(true);
+  const fetchSensorsData = (showLoader = false) => {
+    if (showLoader) setIsLoading(true);
     console.log("[FETCH] Fetching sensors data from /api/sensors...");
     fetch("/api/sensors")
       .then((res) => res.json())
@@ -35,6 +36,7 @@ export default function CitizenDashboard() {
         console.log("[API /api/sensors Response]:", data);
         if (data?.status === "success") {
           setSensors(data.data ?? []);
+          setFetchError(null);
         } else {
           setFetchError(data?.message ?? "Gagal memuat data sensor.");
         }
@@ -43,7 +45,31 @@ export default function CitizenDashboard() {
         console.error("[API /api/sensors Error]:", err);
         setFetchError("Tidak dapat terhubung ke server.");
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (showLoader) setIsLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchSensorsData(true);
+
+    // Supabase Realtime Subscription for instant EWS updates
+    console.log("[CITIZEN REALTIME] Subscribing to sensor_telemetry_logs channel...");
+    const telemetryChannel = supabase
+      .channel('citizen_realtime_telemetry')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sensor_telemetry_logs' },
+        (payload) => {
+          console.log('[CITIZEN REALTIME] Sensor telemetry update received:', payload);
+          fetchSensorsData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(telemetryChannel);
+    };
   }, []);
 
   const activeSensor = sensors[selectedSensorIndex] ?? null;

@@ -51,6 +51,16 @@ function TrackContent() {
   const [notFound, setNotFound] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const [myTickets, setMyTickets] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Load saved tickets from local storage on mount
+    const saved = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+    if (saved.length > 0) {
+      setMyTickets(saved);
+    }
+  }, []);
+
   const fetchReport = useCallback(async (ticketCode: string) => {
     if (!ticketCode.trim()) return;
     setIsLoading(true);
@@ -103,12 +113,19 @@ function TrackContent() {
     }
   };
 
+  const handleHistoryClick = (code: string) => {
+    setTicketInput(code);
+    setSearchedTicket(code);
+    fetchReport(code);
+  };
+
   const statusInfo = report ? getStatusLabel(report.status) : null;
 
   // Determine timeline step completion
   const stepIndex = report
     ? report.status === 'RESOLVED' ? 4
     : report.status === 'INVESTIGATING' ? 3
+    : report.correlation_score > 0 ? 2
     : 1
     : 0;
 
@@ -135,6 +152,33 @@ function TrackContent() {
           {isLoading ? 'Mencari...' : 'Cari'}
         </button>
       </form>
+
+      {/* History List if no report is currently shown and we have history */}
+      {!report && !isLoading && !notFound && myTickets.length > 0 && (
+        <div className="bg-[#ffffff] border border-[#e2e8f0] rounded-sm p-4 space-y-3">
+          <h3 className="text-xs font-mono font-bold text-[#102e91] border-b border-[#e2e8f0] pb-2">
+            RIWAYAT LAPORAN ANDA
+          </h3>
+          <div className="space-y-2">
+            {myTickets.map((code) => (
+              <button
+                key={code}
+                onClick={() => handleHistoryClick(code)}
+                className="w-full flex items-center justify-between p-3 bg-[#f8fafc] border border-[#cbd5e1] rounded-sm hover:border-[#1257bb] transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#64748b]" />
+                  <span className="font-mono text-sm font-bold text-[#102e91]">{code}</span>
+                </div>
+                <span className="text-[10px] font-bold text-[#1257bb]">Cek Status &rarr;</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[#64748b] text-center pt-2">
+            *Riwayat ini tersimpan sementara di perangkat Anda
+          </p>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (
@@ -195,6 +239,22 @@ function TrackContent() {
               )}
             </div>
           )}
+
+          {/* Location & Coordinates Meta */}
+          <div className="p-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-sm text-xs space-y-1">
+            <div>
+              <span className="text-[#64748b]">Lokasi Terkorelasi: </span>
+              <strong className="text-[#102e91]">
+                {report.sensor_nodes?.location_name ?? 'Kawasan Tambak & Pesisir Gresik'}
+              </strong>
+            </div>
+            {report.latitude && report.longitude && (
+              <div>
+                <span className="text-[#64748b]">Koordinat GPS: </span>
+                <span className="font-mono text-[#102e91]">Lat: {report.latitude}, Long: {report.longitude}</span>
+              </div>
+            )}
+          </div>
 
           {/* Description */}
           <div className="p-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-sm">

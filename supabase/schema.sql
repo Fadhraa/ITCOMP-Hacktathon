@@ -80,9 +80,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE incident_reports;
 
 -- Insert Sensor Nodes
 INSERT INTO sensor_nodes (sensor_code, location_name, latitude, longitude) VALUES
-('NODE-A04', 'Muara Tambak Delta Timur', -7.1245, 112.7891),
-('NODE-B01', 'Estuari Pesisir Sektor Tengah', -7.1180, 112.7950),
-('NODE-C02', 'Kanal Outfall Industri Barat', -7.1310, 112.7810)
+('NODE-A04', 'Ujung Timur Muara Sungai Bengawan Solo, Manyar Sido Mukti, Kec. Manyar, Kab. Gresik', -7.1245, 112.7891),
+('NODE-B01', 'Tambak Ikan Kakap Putih Ds Kramat, Kec. Bungah, Kab. Gresik', -7.1180, 112.7950),
+('NODE-C02', 'Ujung Timur Muara Sungai Bengawan Solo, Manyar Sido Mukti, Kec. Manyar, Kab. Gresik', -7.1310, 112.7810)
 ON CONFLICT (sensor_code) DO NOTHING;
 
 -- Insert Initial Telemetry for NODE-A04 (Warning Scenario)

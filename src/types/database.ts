@@ -36,6 +36,8 @@ export interface IncidentReport {
   priority: IncidentPriority;
   correlation_score: number;
   correlated_sensor_id?: string | null;
+  sensor_nodes?: { location_name: string } | null;
+  location_name?: string;
   officer_notes?: string | null;
   created_at: string;
   updated_at: string;

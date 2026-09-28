@@ -18,7 +18,7 @@ export default function ReportPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number }>({ lat: -6.8615, lng: 112.5691 });
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
@@ -81,6 +81,12 @@ export default function ReportPage() {
         console.error("[POST /api/reports Error]:", json.message);
         alert(`Gagal mengirim laporan: ${json.message ?? 'Terjadi kesalahan server.'}`);
         return;
+      }
+
+      // Save to local storage for easy tracking
+      const existingTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+      if (!existingTickets.includes(json.data.ticket_code)) {
+        localStorage.setItem('my_tickets', JSON.stringify([json.data.ticket_code, ...existingTickets]));
       }
 
       setSubmittedTicket(json.data.ticket_code);

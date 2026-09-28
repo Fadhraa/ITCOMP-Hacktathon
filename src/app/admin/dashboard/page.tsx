@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { 
   ShieldCheck, 
   MapPin, 
@@ -17,11 +18,29 @@ import {
   Loader2,
   WifiOff,
   Inbox,
+  Radio,
 } from 'lucide-react';
 import { SensorNode, IncidentReport } from '@/types/database';
+import { supabase } from '@/lib/supabase/client';
+
+// Dynamic import of GisMap to prevent SSR window/leaflet issues
+const GisMap = dynamic(() => import('@/components/GisMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-col items-center justify-center flex-1 min-h-[380px] gap-2 text-xs text-[#64748b]">
+      <Loader2 className="w-7 h-7 text-[#1257bb] animate-spin" />
+      <span>Memuat peta spasial Leaflet & data sensor pesisir...</span>
+    </div>
+  ),
+});
 
 export default function AdminCommandCenter() {
   const [activeTab, setActiveTab] = useState<'map' | 'tickets'>('map');
+
+  // Map layer filter toggles
+  const [showSensors, setShowSensors] = useState(true);
+  const [showReports, setShowReports] = useState(true);
+  const [showRiskZones, setShowRiskZones] = useState(true);
 
   // Sensor state
   const [sensors, setSensors] = useState<SensorNode[]>([]);
@@ -88,6 +107,39 @@ export default function AdminCommandCenter() {
   useEffect(() => {
     fetchSensors();
     fetchTickets();
+
+    // Supabase Realtime Subscription for incident_reports & sensor_telemetry_logs
+    console.log("[REALTIME] Subscribing to Supabase channels in Admin Command Center...");
+    const reportsChannel = supabase
+      .channel('admin_realtime_reports')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'incident_reports' },
+        (payload) => {
+          console.log('[REALTIME EVENT] incident_reports modified:', payload);
+          fetchTickets();
+          setLastRefresh(new Date());
+        }
+      )
+      .subscribe();
+
+    const telemetryChannel = supabase
+      .channel('admin_realtime_telemetry')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sensor_telemetry_logs' },
+        (payload) => {
+          console.log('[REALTIME EVENT] sensor_telemetry_logs updated:', payload);
+          fetchSensors();
+          setLastRefresh(new Date());
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(reportsChannel);
+      supabase.removeChannel(telemetryChannel);
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -108,13 +160,43 @@ export default function AdminCommandCenter() {
     : null;
   const criticalSensors = sensors.filter(s => s.latest_telemetry?.status === 'DANGER' || s.latest_telemetry?.status === 'WARNING');
 
+  const [targetStatus, setTargetStatus] = useState<'INVESTIGATING' | 'RESOLVED'>('INVESTIGATING');
+
   const handleSendDisposisi = async () => {
     if (!selectedTicket || !officerNotes.trim()) return;
     setIsSending(true);
-    // TODO: PATCH /api/reports/[id] untuk update status dan officer_notes
-    // Sementara tampilkan alert sampai endpoint PATCH tersedia
-    alert('Endpoint PATCH /api/reports/[id] belum diimplementasikan. Tambahkan di sprint berikutnya.');
-    setIsSending(false);
+    try {
+      console.log(`[ADMIN PATCH] Sending disposisi for ticket ${selectedTicket.id}...`);
+      const res = await fetch(`/api/reports/${selectedTicket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: targetStatus,
+          officer_notes: officerNotes.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      console.log("[ADMIN PATCH Response]:", json);
+
+      if (json.status !== 'success') {
+        alert(`Gagal memperbarui status tiket: ${json.message ?? 'Terjadi kesalahan server.'}`);
+        return;
+      }
+
+      // Update local tickets state
+      setTickets((prev) =>
+        prev.map((t) => (t.id === selectedTicket.id ? { ...t, ...json.data } : t))
+      );
+
+      setOfficerNotes('');
+      alert(`Berhasil mengirim disposisi! Status tiket ${selectedTicket.ticket_code} telah diubah menjadi ${targetStatus}.`);
+    } catch (err) {
+      console.error("[ADMIN PATCH Exception]:", err);
+      alert('Tidak dapat terhubung ke server.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -247,65 +329,56 @@ export default function AdminCommandCenter() {
             
             <div className="flex items-center gap-3 text-xs">
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-[#1257bb]" />
+                <input 
+                  type="checkbox" 
+                  checked={showSensors} 
+                  onChange={(e) => setShowSensors(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#1257bb]" 
+                />
                 <span>Sensor Buoy ({sensors.length})</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-[#dc2626]" />
-                <span>Laporan Warga</span>
+                <input 
+                  type="checkbox" 
+                  checked={showReports} 
+                  onChange={(e) => setShowReports(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#dc2626]" 
+                />
+                <span>Laporan Warga ({tickets.length})</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-[#f0c059]" />
+                <input 
+                  type="checkbox" 
+                  checked={showRiskZones} 
+                  onChange={(e) => setShowRiskZones(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#d97706]" 
+                />
                 <span>Zona Bahaya Tambak</span>
               </label>
             </div>
           </div>
 
-          {/* Map Viewport Placeholder */}
-          <div className="flex-1 bg-[#f1f5f9] relative p-6 flex flex-col justify-between overflow-hidden">
+          {/* Map Viewport */}
+          <div className="flex-1 bg-[#f1f5f9] relative flex flex-col overflow-hidden min-h-[480px]">
             {sensorsLoading ? (
               <div className="flex flex-col items-center justify-center flex-1 gap-3">
                 <Loader2 className="w-8 h-8 text-[#1257bb] animate-spin" />
-                <p className="text-sm text-[#64748b]">Memuat koordinat sensor...</p>
+                <p className="text-sm text-[#64748b]">Memuat koordinat sensor & peta GIS...</p>
               </div>
             ) : (
-              <>
-                <div className="space-y-2">
-                  <div className="inline-block px-3 py-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-sm shadow-sm text-xs font-mono">
-                    {sensors.length > 0
-                      ? `Pusat Koordinat: ${sensors[0].latitude}, ${sensors[0].longitude}`
-                      : 'Tidak ada sensor terdaftar'}
-                  </div>
-                </div>
-
-                {/* Map Component Slot */}
-                <div className="relative w-full h-80 border border-dashed border-[#cbd5e1] rounded-sm bg-[#ffffff] p-4 flex flex-col justify-center items-center text-center">
-                  <div className="p-4 bg-[#f8fafc] border border-[#cbd5e1] rounded-sm max-w-sm space-y-2">
-                    <div className="text-xs font-bold text-[#102e91]">Area Leaflet Map Terintegrasi</div>
-                    <p className="text-[11px] text-[#64748b]">
-                      Pasang komponen <code>react-leaflet</code> di sini menggunakan data dari <code>/api/sensors</code>.
-                    </p>
-                    {sensors.length > 0 && (
-                      <div className="flex flex-wrap justify-center gap-2 pt-1 font-mono text-[10px]">
-                        {sensors.map((s) => (
-                          <span
-                            key={s.id}
-                            className={`px-2 py-0.5 rounded-sm font-bold border ${
-                              s.latest_telemetry?.status === 'DANGER'
-                                ? 'bg-[#fee2e2] text-[#dc2626] border-[#dc2626]'
-                                : s.latest_telemetry?.status === 'WARNING'
-                                ? 'bg-[#f0c059] text-[#102e91] border-[#d97706]'
-                                : 'bg-[#b5e6c5] text-[#065f46] border-[#059669]'
-                            }`}
-                          >
-                            {s.sensor_code}: {s.latest_telemetry?.ph_level?.toFixed(1) ?? '—'} pH
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
+              <GisMap
+                sensors={sensors}
+                reports={tickets}
+                selectedReportId={selectedTicketId}
+                onSelectReport={(id) => {
+                  setSelectedTicketId(id);
+                  const clicked = tickets.find((t) => t.id === id);
+                  if (clicked) setOfficerNotes(clicked.officer_notes ?? '');
+                }}
+                showSensors={showSensors}
+                showReports={showReports}
+                showRiskZones={showRiskZones}
+              />
             )}
           </div>
         </section>
@@ -388,8 +461,17 @@ export default function AdminCommandCenter() {
                   <div className="space-y-1 text-xs">
                     <div className="text-[#64748b]">Pelapor: <strong className="text-[#102e91]">{selectedTicket.reporter_phone}</strong></div>
                     <div className="text-[#64748b]">Waktu Masuk: <strong className="text-[#102e91]">{new Date(selectedTicket.created_at).toLocaleString('id-ID')}</strong></div>
+                    <div className="text-[#64748b]">
+                      Lokasi: <strong className="text-[#102e91]">
+                        {selectedTicket.sensor_nodes?.location_name ?? 
+                         sensors.find(s => s.id === selectedTicket.correlated_sensor_id)?.location_name ?? 
+                         'Kawasan Tambak & Pesisir Gresik'}
+                      </strong>
+                    </div>
                     {selectedTicket.latitude && selectedTicket.longitude && (
-                      <div className="text-[#64748b]">Lokasi: <span className="font-mono text-[#102e91]">Lat: {selectedTicket.latitude}, Long: {selectedTicket.longitude}</span></div>
+                      <div className="text-[#64748b]">
+                        Koordinat GPS: <span className="font-mono text-[#102e91]">Lat: {selectedTicket.latitude}, Long: {selectedTicket.longitude}</span>
+                      </div>
                     )}
                   </div>
 
@@ -420,17 +502,49 @@ export default function AdminCommandCenter() {
                   )}
 
                   {/* Action Dispatch */}
-                  <div className="space-y-2 border-t border-[#e2e8f0] pt-3">
-                    <label className="block text-xs font-mono font-bold text-[#102e91]">
-                      DISPOSISI &amp; CATATAN PETUGAS PPNS:
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={officerNotes}
-                      onChange={(e) => setOfficerNotes(e.target.value)}
-                      placeholder="Tulis catatan disposisi dan tindak lanjut di lapangan..."
-                      className="w-full p-2.5 bg-[#ffffff] border border-[#cbd5e1] rounded-sm text-xs focus:border-[#1257bb] focus:outline-none"
-                    />
+                  <div className="space-y-3 border-t border-[#e2e8f0] pt-3">
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-[#102e91] mb-1.5">
+                        UPDATE STATUS LAPORAN:
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setTargetStatus('INVESTIGATING')}
+                          className={`p-2 rounded-sm border text-center transition-colors ${
+                            targetStatus === 'INVESTIGATING'
+                              ? 'bg-[#f0c059] text-[#102e91] border-[#d97706] font-bold'
+                              : 'bg-[#f8fafc] text-[#64748b] border-[#cbd5e1] hover:border-[#102e91]'
+                          }`}
+                        >
+                          INVESTIGASI LAPANGAN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetStatus('RESOLVED')}
+                          className={`p-2 rounded-sm border text-center transition-colors ${
+                            targetStatus === 'RESOLVED'
+                              ? 'bg-[#b5e6c5] text-[#065f46] border-[#059669] font-bold'
+                              : 'bg-[#f8fafc] text-[#64748b] border-[#cbd5e1] hover:border-[#102e91]'
+                          }`}
+                        >
+                          TINDAKAN SELESAI
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-[#102e91] mb-1">
+                        DISPOSISI &amp; CATATAN PETUGAS PPNS:
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={officerNotes}
+                        onChange={(e) => setOfficerNotes(e.target.value)}
+                        placeholder="Tulis catatan disposisi dan tindak lanjut di lapangan..."
+                        className="w-full p-2.5 bg-[#ffffff] border border-[#cbd5e1] rounded-sm text-xs focus:border-[#1257bb] focus:outline-none"
+                      />
+                    </div>
                     
                     <button
                       onClick={handleSendDisposisi}
