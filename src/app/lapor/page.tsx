@@ -18,10 +18,7 @@ export default function ReportPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>({
-    lat: -7.1248,
-    lng: 112.7888
-  });
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
@@ -58,18 +55,36 @@ export default function ReportPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone || !description) return;
 
     setIsSubmitting(true);
-    // Generate random Ticket ID format TK-2026-XXXX
-    const generatedTicket = `TK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reporter_phone: phone,
+          description,
+          image_url: photoPreview ?? null,
+          latitude: location?.lat ?? null,
+          longitude: location?.lng ?? null,
+        }),
+      });
 
-    setTimeout(() => {
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        alert(`Gagal mengirim laporan: ${json.message ?? 'Terjadi kesalahan server.'}`);
+        return;
+      }
+
+      setSubmittedTicket(json.data.ticket_code);
+    } catch {
+      alert('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+    } finally {
       setIsSubmitting(false);
-      setSubmittedTicket(generatedTicket);
-    }, 1200);
+    }
   };
 
   return (

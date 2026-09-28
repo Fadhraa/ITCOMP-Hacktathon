@@ -187,6 +187,20 @@ CREATE TABLE alert_subscriptions (
 );
 ```
 
+### 5.5 Tabel `officer_profiles`
+Menyimpan profil petugas DLH yang terhubung dengan Supabase Auth, untuk mengelola akses ke Command Center.
+```sql
+CREATE TABLE officer_profiles (
+    id UUID PRIMARY KEY, -- Terhubung dengan auth.users(id)
+    full_name VARCHAR(100) NOT NULL,
+    badge_number VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(20) DEFAULT 'OFFICER',       -- 'OFFICER', 'ADMIN'
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ---
 
 ## 6. API Specification & Simulation Engine

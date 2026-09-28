@@ -23,7 +23,7 @@
 # misc
 .DS_Store
 *.pem
-
+GUIDEBOOK IT COMP 2026 (1).pdf
 # debug
 npm-debug.log*
 yarn-debug.log*

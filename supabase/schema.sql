@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS incident_reports (
     ticket_code VARCHAR(30) UNIQUE NOT NULL,
     reporter_phone VARCHAR(20) NOT NULL,
     description TEXT NOT NULL,
-    image_url TEXT NOT NULL,
-    latitude DOUBLE PRECISION NOT NULL,
-    longitude DOUBLE PRECISION NOT NULL,
+    image_url TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     status VARCHAR(20) DEFAULT 'PENDING',         -- 'PENDING', 'INVESTIGATING', 'RESOLVED'
     priority VARCHAR(10) DEFAULT 'MEDIUM',        -- 'LOW', 'MEDIUM', 'HIGH'
     correlation_score INTEGER DEFAULT 0,          -- 0 - 100 (%)
@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS alert_subscriptions (
     coastal_sector VARCHAR(50) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Table: officer_profiles
+CREATE TABLE IF NOT EXISTS officer_profiles (
+    id UUID PRIMARY KEY, -- Nanti akan refer ke auth.users(id)
+    full_name VARCHAR(100) NOT NULL,
+    badge_number VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(20) DEFAULT 'OFFICER',       -- 'OFFICER', 'ADMIN'
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Enable Realtime for live synchronization between Petambak and DLH Command Center
