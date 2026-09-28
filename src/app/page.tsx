@@ -28,16 +28,21 @@ export default function CitizenDashboard() {
 
   useEffect(() => {
     setIsLoading(true);
+    console.log("[FETCH] Fetching sensors data from /api/sensors...");
     fetch("/api/sensors")
       .then((res) => res.json())
       .then((data) => {
+        console.log("[API /api/sensors Response]:", data);
         if (data?.status === "success") {
           setSensors(data.data ?? []);
         } else {
           setFetchError(data?.message ?? "Gagal memuat data sensor.");
         }
       })
-      .catch(() => setFetchError("Tidak dapat terhubung ke server."))
+      .catch((err) => {
+        console.error("[API /api/sensors Error]:", err);
+        setFetchError("Tidak dapat terhubung ke server.");
+      })
       .finally(() => setIsLoading(false));
   }, []);
 

@@ -61,6 +61,7 @@ export default function ReportPage() {
 
     setIsSubmitting(true);
     try {
+      console.log("[POST /api/reports Request]: Sending report for phone:", phone);
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,13 +75,17 @@ export default function ReportPage() {
       });
 
       const json = await res.json();
+      console.log("[POST /api/reports Response]:", json);
+
       if (!res.ok || json.status !== 'success') {
+        console.error("[POST /api/reports Error]:", json.message);
         alert(`Gagal mengirim laporan: ${json.message ?? 'Terjadi kesalahan server.'}`);
         return;
       }
 
       setSubmittedTicket(json.data.ticket_code);
-    } catch {
+    } catch (err) {
+      console.error("[POST /api/reports Exception]:", err);
       alert('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
     } finally {
       setIsSubmitting(false);

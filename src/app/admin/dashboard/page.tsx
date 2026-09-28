@@ -44,14 +44,17 @@ export default function AdminCommandCenter() {
     setSensorsLoading(true);
     setSensorsError(null);
     try {
+      console.log("[ADMIN FETCH] Requesting /api/sensors...");
       const res = await fetch('/api/sensors');
       const json = await res.json();
+      console.log("[ADMIN /api/sensors Response]:", json);
       if (json.status === 'success') {
         setSensors(json.data ?? []);
       } else {
         setSensorsError(json.message ?? 'Gagal memuat sensor.');
       }
-    } catch {
+    } catch (err) {
+      console.error("[ADMIN /api/sensors Error]:", err);
       setSensorsError('Tidak dapat terhubung ke server.');
     } finally {
       setSensorsLoading(false);
@@ -62,8 +65,10 @@ export default function AdminCommandCenter() {
     setTicketsLoading(true);
     setTicketsError(null);
     try {
+      console.log("[ADMIN FETCH] Requesting /api/reports...");
       const res = await fetch('/api/reports');
       const json = await res.json();
+      console.log("[ADMIN /api/reports Response]:", json);
       if (json.status === 'success') {
         setTickets(json.data ?? []);
         if (json.data?.length > 0 && !selectedTicketId) {
@@ -72,7 +77,8 @@ export default function AdminCommandCenter() {
       } else {
         setTicketsError(json.message ?? 'Gagal memuat tiket.');
       }
-    } catch {
+    } catch (err) {
+      console.error("[ADMIN /api/reports Error]:", err);
       setTicketsError('Tidak dapat terhubung ke server.');
     } finally {
       setTicketsLoading(false);
